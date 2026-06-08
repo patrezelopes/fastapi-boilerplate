@@ -1,0 +1,35 @@
+name: Quality
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+env:
+  UV_LINK_MODE: copy
+  UV_COMPILE_BYTECODE: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/astral-sh/uv:python3.14-bookworm-slim
+    steps:
+      - name: Install git
+        run: apt-get update && apt-get install -y --no-install-recommends git
+
+      - uses: actions/checkout@v4
+
+      - name: Cache virtualenv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ hashFiles('uv.lock') }}
+
+      - name: Install dependencies
+        run: uv sync --extra dev --frozen
+
+      - name: Run pre-commit
+        run: uv run pre-commit run --all-files --show-diff-on-failure

@@ -1,0 +1,68 @@
+# Git
+.git/
+.gitignore
+
+# Environment & secrets
+.env
+.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments (rebuilt in the image)
+.venv/
+venv/
+env/
+
+# Packaging & build artifacts
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+
+# uv cache
+.uv/
+
+# Testing & coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.tox/
+.nox/
+tests/
+
+# Linters & type checkers
+.ruff_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Logs & local databases
+*.log
+*.sqlite3
+*.db
+
+# Docker & compose (not needed inside the image)
+Dockerfile
+.dockerignore
+docker-compose.yml
+docker-compose.override.yml
+Makefile
+
+# IDE & editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

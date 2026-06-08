@@ -1,0 +1,69 @@
+# See https://pre-commit.com for usage and https://pre-commit.com/hooks.html for hooks.
+# Python hooks use `uv run` so versions stay pinned in uv.lock / pyproject.toml.
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+      - id: detect-private-key
+
+  - repo: local
+    hooks:
+      - id: black
+        name: black
+        entry: uv run black
+        language: system
+        types: [python]
+
+      - id: isort
+        name: isort
+        entry: uv run isort
+        language: system
+        types: [python]
+
+      - id: ruff
+        name: ruff
+        entry: uv run ruff check --fix
+        language: system
+        types: [python]
+
+      - id: mypy
+        name: mypy
+        entry: uv run mypy
+        language: system
+        pass_filenames: false
+        types: [python]
+
+      - id: vulture
+        name: vulture
+        entry: uv run vulture src --config pyproject.toml
+        language: system
+        pass_filenames: false
+        types: [python]
+
+      - id: bandit
+        name: bandit
+        entry: uv run bandit -r src -c pyproject.toml
+        language: system
+        pass_filenames: false
+        types: [python]
+
+      - id: radon-complexity
+        name: radon (complexity & maintainability)
+        entry: bash -c 'uv run radon cc src -a --min B && uv run radon mi src --min B'
+        language: system
+        pass_filenames: false
+        types: [python]
+
+      - id: pytest-coverage
+        name: pytest (coverage >= 90%)
+        entry: uv run pytest --cov=app --cov-report=term-missing --cov-fail-under=90
+        language: system
+        pass_filenames: false
+        types: [python]

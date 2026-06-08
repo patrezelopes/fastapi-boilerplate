@@ -1,0 +1,33 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${API_PORT:-8000}:8000"
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./src:/app/src:ro
+    restart: unless-stopped
+
+  db:
+    image: postgres:18.4-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER:-boilerplate}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-boilerplate}
+      POSTGRES_DB: ${DB_NAME:-boilerplate}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-boilerplate} -d ${DB_NAME:-boilerplate}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
