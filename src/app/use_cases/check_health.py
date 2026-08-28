@@ -1,5 +1,5 @@
 from app.entities.health_status import HealthStatus
-from app.use_cases.health_repository import HealthRepository
+from app.use_cases.ports.health_repository import HealthRepository
 
 
 class CheckHealthUseCase:

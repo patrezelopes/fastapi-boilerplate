@@ -23,3 +23,8 @@ class Database:
 
     def session(self) -> Session:
         return self._session_factory()
+
+    @property
+    def session_factory(self) -> sessionmaker[Session]:
+        """Fábrica de sessões, entregue aos repositories pelo container."""
+        return self._session_factory
