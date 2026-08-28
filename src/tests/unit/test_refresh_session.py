@@ -7,8 +7,6 @@ from tests.conftest import (
     FakeRefreshTokenService,
     FrozenClock,
     InMemoryRefreshTokenRepository,
-)
-from tests.conftest import (
     make_user,
 )
 
