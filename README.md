@@ -1,36 +1,46 @@
-# Toda Matemática — Backend
+# FastAPI Boilerplate — LopesTech
 
-API FastAPI com [Clean Architecture](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html), gerenciamento de dependências via [uv](https://docs.astral.sh/uv/) e containerização com Docker Compose.
+Backend em FastAPI com [Clean Architecture](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html),
+autenticação JWT com refresh rotacionado, e um kit completo de desenvolvimento orientado a
+spec para trabalhar com o Claude Code.
+
+É a **referência** de uma família de seis boilerplates — FastAPI, Django, NestJS, Spring
+Boot, Go e Rust — que compartilham a mesma arquitetura, o mesmo contrato de API e os mesmos
+portões de qualidade.
+
+> Os três frontends (React, Vue e Angular) e a reorganização em monorepo chegam nas
+> próximas fases do roadmap da família.
 
 ## Arquitetura
 
 ```
 src/app/
-├── api/            # Interface Adapters — rotas HTTP
-├── schemas/        # Modelos Pydantic (request/response)
-├── entities/       # Enterprise Business Rules
-├── use_cases/      # Application Business Rules
-├── repositories/   # Interface Adapters — acesso a dados
-│   └── models/     # Modelos SQLAlchemy (ORM)
-├── config/         # Frameworks & Drivers — settings, DB, DI
+├── entities/        Enterprise Business Rules — sem framework, sem I/O
+├── use_cases/       Application Business Rules
+│   └── ports/       as interfaces que os casos de uso consomem
+├── repositories/    Interface Adapters — acesso a dados
+│   └── models/      modelos SQLAlchemy
+├── api/             Interface Adapters — rotas, DTOs de transporte, erros
+├── schemas/         modelos Pydantic de entrada e saída
+├── config/          Frameworks & Drivers — settings, banco, segurança, DI
 └── main.py
 ```
 
-### Regra de dependência
+### A regra de dependência
 
 ```
-config → repositories / api → use_cases → entities
+config  →  api | repositories  →  use_cases  →  entities
 ```
 
-| Pasta | Responsabilidade |
-|-------|------------------|
-| `entities/` | Regras de negócio de alto nível |
-| `use_cases/` | Casos de uso e contratos de repositório |
-| `repositories/` | Implementação de acesso a dados |
-| `repositories/models/` | Modelos SQLAlchemy (ORM) |
-| `api/` | Rotas FastAPI |
-| `schemas/` | Modelos Pydantic de entrada e saída |
-| `config/` | Settings, SQLAlchemy, dependency-injector |
+A seta aponta **para dentro**. `entities` e `use_cases` não conhecem HTTP, ORM nem
+framework — e isso é **verificado**, não confiado:
+
+```bash
+make arch
+```
+
+O `import-linter` roda no pre-commit e no CI, com quatro contratos. Violar a regra falha o
+build. Os detalhes estão em [`.claude/rules/architecture.md`](.claude/rules/architecture.md).
 
 ## Requisitos
 
@@ -38,137 +48,133 @@ config → repositories / api → use_cases → entities
 - [uv](https://docs.astral.sh/uv/getting-started/installation/)
 - Docker e Docker Compose
 
-## Setup local
+## Setup
 
 ```bash
 cp .env.example .env
-uv sync --extra dev
-uv run uvicorn app.main:app --reload --app-dir src
-```
-
-## Qualidade de código (pre-commit)
-
-O projeto usa [pre-commit](https://pre-commit.com/) com ferramentas open source para formatar, analisar tipos e detectar code smells antes de cada commit.
-
-| Ferramenta | Função |
-|------------|--------|
-| **black** | Formatação de código |
-| **isort** | Ordenação de imports |
-| **ruff** | Lint rápido (erros, bugbear, complexidade ciclomática, simplificações) |
-| **mypy** | Verificação estática de tipos |
-| **vulture** | Código morto e símbolos não utilizados |
-| **bandit** | Vulnerabilidades e más práticas de segurança |
-| **radon** | Complexidade ciclomática e índice de manutenibilidade |
-| **pytest** | Testes com cobertura mínima de 90% |
-
-Ferramentas adicionais recomendadas (rodar manualmente ou em CI):
-
-| Ferramenta | Função |
-|------------|--------|
-| **pytest** | Testes com cobertura mínima de 90% (`make test`) |
-| **pip-audit** | Auditoria de vulnerabilidades em dependências |
-| **detect-secrets** | Detecção de segredos e credenciais no código |
-
-### Instalação
-
-```bash
 uv sync --extra dev
 uv run pre-commit install
+
+make up          # sobe api + Postgres e aguarda o healthcheck
+make migrate     # aplica as migrations
+make seed        # popula com dados de desenvolvimento
 ```
 
-### Uso
-
-```bash
-# Roda todos os hooks em todos os arquivos
-uv run pre-commit run --all-files
-
-# Roda apenas nos arquivos staged (automático após install)
-uv run pre-commit run
-
-# Atualiza versões dos hooks
-uv run pre-commit autoupdate
-
-# Atalho via Makefile
-make lint
-
-# Mesmo comando executado no GitLab CI
-make ci
-```
-
-## CI (GitLab)
-
-O pipeline em [`.gitlab-ci.yml`](.gitlab-ci.yml) executa os **mesmos hooks do pre-commit** em merge requests e na branch principal:
-
-```bash
-uv sync --extra dev --frozen
-uv run pre-commit run --all-files --show-diff-on-failure
-```
-
-Para reproduzir localmente o que o CI roda:
-
-```bash
-uv sync --extra dev --frozen
-make ci
-```
-
-### Rodar ferramentas individualmente
-
-```bash
-uv run black src alembic
-uv run isort src alembic
-uv run ruff check --fix src alembic
-uv run mypy
-uv run vulture
-uv run bandit -r src -c pyproject.toml
-uv run radon cc src -a
-uv run radon mi src
-```
-
-## Testes
-
-Estrutura em `src/tests/`:
-
-```
-src/tests/
-├── conftest.py       # fixtures compartilhadas
-├── unit/             # testes isolados (use cases, repositórios, helpers)
-└── integration/      # testes HTTP e wiring da aplicação
-```
-
-```bash
-# Todos os testes com cobertura mínima de 90%
-make test
-
-# Apenas unitários ou integração
-uv run pytest -m unit
-uv run pytest -m integration
-
-# Relatório HTML de cobertura
-uv run pytest --cov=app --cov-report=html
-```
-
-A cobertura é validada automaticamente no pre-commit (hook `pytest-coverage`).
-
-## Docker
-
-```bash
-cp .env.example .env
-make build
-make up
-make down
-make restart
-```
+A API sobe em `http://localhost:8000`, com documentação em `/docs`.
 
 ## Endpoints
 
-| Método | Rota                   | Descrição                          |
-|--------|------------------------|------------------------------------|
-| GET    | `/api/v1/health`       | Liveness — aplicação está viva     |
-| GET    | `/api/v1/health/ready` | Readiness — verifica conexão com DB|
+| Método | Rota | Auth | Descrição |
+|---|---|---|---|
+| GET | `/api/v1/health` | — | liveness; não toca no banco |
+| GET | `/api/v1/health/ready` | — | readiness; 503 se o banco estiver fora |
+| POST | `/api/v1/auth/register` | — | cria conta |
+| POST | `/api/v1/auth/login` | — | access token no corpo, refresh em cookie |
+| POST | `/api/v1/auth/refresh` | cookie | rotaciona o par |
+| POST | `/api/v1/auth/logout` | cookie | revoga e limpa o cookie |
+| GET | `/api/v1/auth/me` | Bearer | perfil do token |
+| GET | `/api/v1/users` | Bearer | lista paginada, com busca |
+| POST | `/api/v1/users` | Bearer | cria |
+| GET · PATCH · DELETE | `/api/v1/users/{id}` | Bearer | lê, atualiza parcialmente, remove |
 
-## Migrações (Alembic)
+### Autenticação
+
+| | Access | Refresh |
+|---|---|---|
+| formato | JWT assinado | opaco, 256 bits |
+| vida | 15 min | 14 dias |
+| onde vive | **memória** do cliente | cookie `httpOnly` |
+| rotação | não | a cada uso |
+
+Senhas com **argon2id**. Nenhum token toca `localStorage`. Reusar um refresh já rotacionado
+revoga toda a família daquele usuário — é a detecção de roubo.
+
+### Erros — RFC 9457
+
+Toda resposta de erro sai como `application/problem+json`:
+
+```json
+{
+  "type": "https://lopestech.dev/errors/validation",
+  "title": "Validation failed",
+  "status": 422,
+  "detail": "O corpo da requisição contém campos inválidos.",
+  "errors": [{ "field": "email", "message": "formato inválido" }]
+}
+```
+
+## O contrato
+
+[`contract/openapi.yaml`](contract/openapi.yaml) é a fonte da verdade, versionada idêntica
+nos seis repositórios da família. Mudança na API vai sempre no contrato primeiro.
+
+```bash
+make up
+make contract-test    # Schemathesis, gerando casos a partir do contrato
+```
+
+## Qualidade
+
+```bash
+make lint    # todos os portões
+make test    # testes com cobertura mínima de 90%
+make ci      # exatamente o que o CI roda
+```
+
+| Ferramenta | Função |
+|---|---|
+| **black** · **isort** | formatação e ordenação de imports |
+| **ruff** | lint, bugbear, simplificações, complexidade ciclomática |
+| **mypy** | tipos estáticos |
+| **vulture** | código morto |
+| **bandit** | vulnerabilidades e más práticas |
+| **radon** | complexidade e manutenibilidade |
+| **import-linter** | a regra de dependência |
+| **pytest** | testes, cobertura mínima de 90% |
+
+O CI roda **os mesmos hooks** do pre-commit. Vermelho no CI reproduz com `make ci`.
+
+## Testes
+
+```
+src/tests/
+├── conftest.py       fakes dos ports e fixtures compartilhadas
+├── unit/             entities e casos de uso — sem banco
+└── integration/      rotas, envelope de erro e repositories
+```
+
+```bash
+uv run pytest -m unit           # rápido, dispensa Docker
+uv run pytest -m integration    # sobe Postgres via Testcontainers
+uv run pytest --cov=app --cov-report=html
+```
+
+Os testes de rota usam o container com fakes; os de repository, Postgres de verdade.
+
+## Trabalhando com o Claude Code
+
+Mudança de comportamento nasce de uma spec em `specs/`, não no editor.
+
+```
+/spec <feature>   →  specs/NNNN-<slug>/spec.md      o quê e por quê
+/plan NNNN        →  plan.md + tasks.md             como
+/implement NNNN   →  código, camada por camada
+/verify NNNN      →  critérios de aceite + portões
+```
+
+O kit em [`.claude/`](.claude/) traz sete skills, quatro comandos, dois agentes de revisão
+e seis regras. As specs [`0001`](specs/0001-health/), [`0002`](specs/0002-auth/) e
+[`0003`](specs/0003-users/) estão escritas **e** implementadas: são o formato de referência.
+
+## Migrações
 
 ```bash
 uv run alembic revision --autogenerate -m "descricao"
-uv run alembic upgrade head
+make migrate
 ```
+
+Leia sempre a migration gerada antes de commitar — o autogenerate erra em renomeação.
+
+## Licença
+
+MIT.
