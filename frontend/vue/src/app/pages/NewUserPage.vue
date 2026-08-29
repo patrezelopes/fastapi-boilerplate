@@ -40,7 +40,11 @@ const onSubmit = handleSubmit((values) => {
     <h1 class="mb-6 text-2xl font-semibold">Novo usuário</h1>
 
     <form novalidate class="flex flex-col gap-4" @submit="onSubmit">
-      <AppField v-model="name" label="Nome" :error="firstMessage(errors.name, serverErrors['name'])" />
+      <AppField
+        v-model="name"
+        label="Nome"
+        :error="firstMessage(errors.name, serverErrors['name'])"
+      />
       <AppField
         v-model="email"
         label="E-mail"
@@ -55,7 +59,9 @@ const onSubmit = handleSubmit((values) => {
         :error="firstMessage(errors.password, serverErrors['password'])"
       />
 
-      <AppAlert v-if="hasGeneralError" tone="error">{{ messageOf(createUser.error.value) }}</AppAlert>
+      <AppAlert v-if="hasGeneralError" tone="error">{{
+        messageOf(createUser.error.value)
+      }}</AppAlert>
 
       <div class="flex gap-3">
         <AppButton type="submit" :loading="createUser.isPending.value">Salvar</AppButton>
