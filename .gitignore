@@ -27,6 +27,8 @@ build/
 
 # Testing & coverage
 .pytest_cache/
+.schemathesis/
+.hypothesis/
 .coverage
 .coverage.*
 htmlcov/

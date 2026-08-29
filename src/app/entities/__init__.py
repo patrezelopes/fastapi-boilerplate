@@ -1,3 +1,1 @@
-from app.entities.health_status import HealthStatus
-
-__all__ = ["HealthStatus"]
+"""Enterprise Business Rules — regras que valeriam sem banco e sem HTTP."""

@@ -6,6 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
+    PYTHONPATH=/app/src \
     PATH="/app/.venv/bin:$PATH"
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
@@ -14,8 +15,13 @@ COPY pyproject.toml uv.lock README.md ./
 RUN uv sync --frozen --no-dev
 
 COPY alembic.ini ./
-COPY alembic ./alembic
+COPY migrations ./migrations
 COPY src ./src
+
+# Não roda como root.
+RUN useradd --create-home --uid 10001 app \
+    && chown -R app:app /app
+USER app
 
 EXPOSE 8000
 

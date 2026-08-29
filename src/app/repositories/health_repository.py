@@ -1,19 +1,25 @@
 from sqlalchemy import text
+from sqlalchemy.engine import Engine
 
-from app.config.database import Database
-from app.use_cases.health_repository import HealthRepository
+from app.use_cases.ports.health_repository import HealthRepository
 
 
 class SqlAlchemyHealthRepository(HealthRepository):
-    def __init__(self, database: Database) -> None:
-        self._database = database
+    """Recebe o `Engine` direto, e não o wrapper de `config`.
+
+    Depender de `config.Database` seria uma importação para fora — ver
+    `.claude/rules/architecture.md`.
+    """
+
+    def __init__(self, engine: Engine) -> None:
+        self._engine = engine
 
     def is_alive(self) -> bool:
         return True
 
     def is_ready(self) -> bool:
         try:
-            with self._database.engine.connect() as connection:
+            with self._engine.connect() as connection:
                 connection.execute(text("SELECT 1"))
             return True
         except Exception:

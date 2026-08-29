@@ -49,7 +49,14 @@ repos:
 
       - id: bandit
         name: bandit
-        entry: uv run bandit -r src -c pyproject.toml
+        entry: uv run bandit -r src -c pyproject.toml -q
+        language: system
+        pass_filenames: false
+        types: [python]
+
+      - id: import-linter
+        name: import-linter (regra de dependência)
+        entry: uv run lint-imports
         language: system
         pass_filenames: false
         types: [python]

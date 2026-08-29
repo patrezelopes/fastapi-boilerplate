@@ -2,8 +2,7 @@ name: Quality
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
 
 env:
@@ -12,24 +11,54 @@ env:
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
 
 jobs:
-  pre-commit:
+  gates:
+    name: Portões de qualidade
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/astral-sh/uv:python3.14-bookworm-slim
     steps:
-      - name: Install git
-        run: apt-get update && apt-get install -y --no-install-recommends git
-
       - uses: actions/checkout@v4
 
-      - name: Cache virtualenv
-        uses: actions/cache@v4
+      - name: Instalar uv
+        uses: astral-sh/setup-uv@v5
         with:
-          path: .venv
-          key: venv-${{ hashFiles('uv.lock') }}
+          enable-cache: true
+          cache-dependency-glob: uv.lock
 
-      - name: Install dependencies
+      - name: Instalar dependências
         run: uv sync --extra dev --frozen
 
-      - name: Run pre-commit
+      # Roda exatamente os mesmos hooks do pre-commit local.
+      # Os testes de integração sobem Postgres via Testcontainers, usando o
+      # Docker que o runner já provê.
+      - name: pre-commit
         run: uv run pre-commit run --all-files --show-diff-on-failure
+
+  contract:
+    name: Contrato
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Subir a stack
+        run: |
+          cp .env.example .env
+          make up
+
+      - name: Aplicar migrations
+        run: make migrate
+
+      - name: Validar contra contract/openapi.yaml
+        run: make contract-test
+
+      - name: Logs da api em caso de falha
+        if: failure()
+        run: docker compose logs api
+
+      - name: Derrubar
+        if: always()
+        run: make clean
