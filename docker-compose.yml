@@ -1,17 +1,49 @@
+# A stack completa. Perfis decidem qual frontend sobe — o Makefile da raiz
+# define COMPOSE_PROFILES a partir de FRONT.
+name: ${APP_NAME:-boilerplate}
+
+x-web-common: &web-common
+  depends_on:
+    api:
+      condition: service_healthy
+  environment:
+    VITE_API_TARGET: http://api:8000
+  healthcheck:
+    test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5173/ >/dev/null 2>&1 || exit 1"]
+    interval: 5s
+    timeout: 5s
+    retries: 24
+    start_period: 30s
+  restart: unless-stopped
+
 services:
+  db:
+    image: postgres:18.4-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER:-boilerplate}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-boilerplate}
+      POSTGRES_DB: ${DB_NAME:-boilerplate}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-boilerplate} -d ${DB_NAME:-boilerplate}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
   api:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
     ports:
       - "${API_PORT:-8000}:8000"
-    env_file:
-      - .env
+    env_file: [.env]
     depends_on:
       db:
         condition: service_healthy
     volumes:
-      - ./src:/app/src:ro
+      - ./backend/src:/app/src:ro
     healthcheck:
       test:
         - CMD
@@ -31,20 +63,28 @@ services:
       start_period: 20s
     restart: unless-stopped
 
-  db:
-    image: postgres:18.4-alpine
-    environment:
-      POSTGRES_USER: ${DB_USER:-boilerplate}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-boilerplate}
-      POSTGRES_DB: ${DB_NAME:-boilerplate}
-    volumes:
-      - postgres_data:/var/lib/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-boilerplate} -d ${DB_NAME:-boilerplate}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    restart: unless-stopped
+  web-react:
+    <<: *web-common
+    profiles: [react]
+    build:
+      context: ./frontend/react
+    ports:
+      - "${WEB_PORT:-5173}:5173"
 
+  web-vue:
+    <<: *web-common
+    profiles: [vue]
+    build:
+      context: ./frontend/vue
+    ports:
+      - "${WEB_PORT:-5173}:5173"
+
+  web-angular:
+    <<: *web-common
+    profiles: [angular]
+    build:
+      context: ./frontend/angular
+    ports:
+      - "${WEB_PORT:-5173}:5173"
 volumes:
   postgres_data:

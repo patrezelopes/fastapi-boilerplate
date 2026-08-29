@@ -1,8 +1,7 @@
 [project]
 name = "boilerplate-back"
 version = "0.1.0"
-description = "Toda Matemática API"
-readme = "README.md"
+description = "Backend do boilerplate LopesTech"
 requires-python = ">=3.14"
 dependencies = [
     "alembic>=1.14.0",

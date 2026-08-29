@@ -1,76 +1,107 @@
-# See https://pre-commit.com for usage and https://pre-commit.com/hooks.html for hooks.
-# Python hooks use `uv run` so versions stay pinned in uv.lock / pyproject.toml.
+# Os hooks rodam da raiz do monorepo; os do backend entram em backend/ via
+# `uv --directory`. Ver https://pre-commit.com.
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
+        exclude: ^frontend/.*/pnpm-lock\.yaml$
       - id: end-of-file-fixer
+        exclude: ^frontend/.*/pnpm-lock\.yaml$
       - id: check-yaml
+        exclude: ^frontend/.*/pnpm-lock\.yaml$
       - id: check-toml
+      - id: check-json
+        exclude: ^frontend/(angular/(tsconfig|tsconfig\.app|tsconfig\.spec)\.json)$
       - id: check-merge-conflict
       - id: check-added-large-files
       - id: detect-private-key
 
+  # ─── backend ───────────────────────────────────────────────────────────────
   - repo: local
     hooks:
       - id: black
         name: black
-        entry: uv run black
+        entry: uv --directory backend run black src migrations
         language: system
-        types: [python]
+        pass_filenames: false
+        files: ^backend/.*\.py$
 
       - id: isort
         name: isort
-        entry: uv run isort
+        entry: uv --directory backend run isort src migrations
         language: system
-        types: [python]
+        pass_filenames: false
+        files: ^backend/.*\.py$
 
       - id: ruff
         name: ruff
-        entry: uv run ruff check --fix
+        entry: uv --directory backend run ruff check --fix src migrations
         language: system
-        types: [python]
+        pass_filenames: false
+        files: ^backend/.*\.py$
 
       - id: mypy
         name: mypy
-        entry: uv run mypy
+        entry: uv --directory backend run mypy
         language: system
         pass_filenames: false
-        types: [python]
+        files: ^backend/.*\.py$
 
       - id: vulture
         name: vulture
-        entry: uv run vulture src --config pyproject.toml
+        entry: uv --directory backend run vulture src --config pyproject.toml
         language: system
         pass_filenames: false
-        types: [python]
+        files: ^backend/.*\.py$
 
       - id: bandit
         name: bandit
-        entry: uv run bandit -r src -c pyproject.toml -q
+        entry: uv --directory backend run bandit -r src -c pyproject.toml -q
         language: system
         pass_filenames: false
-        types: [python]
+        files: ^backend/.*\.py$
 
       - id: import-linter
         name: import-linter (regra de dependência)
-        entry: uv run lint-imports
+        entry: uv --directory backend run lint-imports
         language: system
         pass_filenames: false
-        types: [python]
+        files: ^backend/.*\.py$
 
       - id: radon-complexity
         name: radon (complexity & maintainability)
-        entry: bash -c 'uv run radon cc src -a --min B && uv run radon mi src --min B'
+        entry: bash -c 'cd backend && uv run radon cc src -a --min B && uv run radon mi src --min B'
         language: system
         pass_filenames: false
-        types: [python]
+        files: ^backend/.*\.py$
 
       - id: pytest-coverage
         name: pytest (coverage >= 90%)
-        entry: uv run pytest --cov=app --cov-report=term-missing --cov-fail-under=90
+        entry: uv --directory backend run pytest --cov=app --cov-report=term-missing --cov-fail-under=90
         language: system
         pass_filenames: false
-        types: [python]
+        files: ^backend/.*\.py$
+
+  # ─── frontends ─────────────────────────────────────────────────────────────
+  # Só a formatação, que é rápida. Lint, tipos, camadas e testes ficam nos jobs
+  # de frontend do CI — rodá-los a cada commit tornaria o hook insuportável.
+  #
+  # Esta verificação existe porque a formatação de um SPA já quebrou o CI duas
+  # vezes, por edição feita depois da última rodada local dos portões.
+  #
+  # Sai em silêncio sem pnpm: o job Python do CI não tem Node, e ali quem
+  # verifica formatação são os próprios jobs de frontend.
+  - repo: local
+    hooks:
+      - id: prettier-frontend
+        name: prettier (frontends)
+        entry: >-
+          bash -c 'command -v pnpm >/dev/null 2>&1 || exit 0;
+          for f in react vue angular; do
+          (cd "frontend/$f" && pnpm exec prettier --check .) || exit 1;
+          done'
+        language: system
+        pass_filenames: false
+        files: ^frontend/
