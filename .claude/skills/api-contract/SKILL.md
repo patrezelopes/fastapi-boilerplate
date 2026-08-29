@@ -49,7 +49,24 @@ Quebra de compatibilidade exige `/api/v2` ou combinação explícita — e uma A
 - Todo `4xx` e `5xx` usa `application/problem+json` com o schema `Problem`.
 - Toda listagem devolve `{ items, meta }` com `PageMeta`. Nunca array cru na raiz.
 - Todo campo tem `format` quando existir (`uuid`, `email`, `date-time`) e limite de tamanho.
+- Todo corpo de entrada declara `additionalProperties: false`.
+- Todo parâmetro numérico tem `minimum` **e** `maximum`. Sem teto, o contrato promete
+  aceitar um inteiro de 25 dígitos.
+- Todo campo de texto que chega ao banco recusa caractere de controle: o byte NUL não cabe
+  num `text` do Postgres, e vira 500 na escrita.
 - Exemplo em toda resposta de erro.
+
+## O contrato é o limite superior, não só o inferior
+
+A implementação não pode ser **mais restrita** que o contrato. Um contrato que promete mais
+do que a API entrega mente para quem o consome, e é tão defeito quanto o contrário.
+
+Casos reais desta família: o `char::is_control()` do Rust recusava o bloco C1, que o padrão
+aceita; o `@NotBlank` do Spring recusava uma senha de doze espaços; e o `@Length` do
+class-validator contava unidades UTF-16, recusando um nome de sessenta emojis que tem
+sessenta pontos de código. Comprimento no JSON Schema é sempre em **pontos de código**.
+
+Ver `docs/adr/0009-rigor-na-borda-e-o-limite-entre-400-e-422.md`.
 
 ## Validar
 
@@ -57,6 +74,11 @@ Quebra de compatibilidade exige `/api/v2` ou combinação explícita — e uma A
 make contract-test    # o backend de pé cumpre o contrato
 make codegen          # os tipos regeram sem erro
 ```
+
+O `contract-test` **autentica**: ele cadastra uma conta e passa o Bearer. Sem isso, toda
+rota protegida devolve 401 e o Schemathesis nunca chega a validar um 200 delas contra o
+schema — metade da API fica fora do portão. Foi assim que uma resposta de `/users` com a
+paginação no formato errado sobreviveu a duas implementações.
 
 Um `contract-test` verde e um `tsc` verde nos três frontends é o que define "o contrato
 está cumprido".
