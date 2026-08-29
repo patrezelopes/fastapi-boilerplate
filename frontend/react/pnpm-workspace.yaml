@@ -1,0 +1,5 @@
+# O esbuild roda um script de instalação. pnpm 11 exige autorização explícita —
+# esta lista é escrita por `pnpm approve-builds --all`. Sem ela, `pnpm install`
+# sai com código 1 e todo script do package.json falha antes de começar.
+allowBuilds:
+  esbuild: true

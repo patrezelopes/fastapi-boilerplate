@@ -3,8 +3,11 @@
 Backend em **FastAPI**, referência de uma família de seis boilerplates que compartilham
 arquitetura, contrato de API e portões de qualidade.
 
-> Os três frontends (React, Vue, Angular) chegam na Fase 2 e a reorganização em monorepo
-> na Fase 3. Ver o roadmap da família.
+Traz também os **três frontends de referência** — React, Vue e Angular — equivalentes por
+contrato: as mesmas telas, o mesmo comportamento, verificados por um único roteiro do
+Playwright que roda contra os três.
+
+> A reorganização em monorepo (`backend/` na raiz, compose único) chega na Fase 3.
 
 ## Como trabalhamos aqui
 
@@ -39,7 +42,13 @@ make lint                # portões
 make test                # testes
 make ci                  # tudo que o CI roda
 make contract-test       # o backend cumpre contract/openapi.yaml?
+make codegen             # regera os tipos dos três frontends
+make e2e FRONT=vue       # Playwright contra um SPA
+make e2e-all             # o mesmo roteiro nos três
 ```
+
+Cada frontend tem seu próprio `Makefile` com os mesmos alvos:
+`cd frontend/react && make lint test`.
 
 
 
@@ -49,6 +58,7 @@ make contract-test       # o backend cumpre contract/openapi.yaml?
 @.claude/rules/errors.md
 @.claude/rules/testing.md
 @.claude/rules/security.md
+@.claude/rules/frontend.md
 @.claude/rules/git.md
 
 ## Ao commitar

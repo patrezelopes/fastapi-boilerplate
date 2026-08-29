@@ -11,8 +11,8 @@ env:
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
 
 jobs:
-  gates:
-    name: Portões de qualidade
+  backend:
+    name: Backend
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,11 +26,49 @@ jobs:
       - name: Instalar dependências
         run: uv sync --extra dev --frozen
 
-      # Roda exatamente os mesmos hooks do pre-commit local.
-      # Os testes de integração sobem Postgres via Testcontainers, usando o
-      # Docker que o runner já provê.
+      # Roda exatamente os mesmos hooks do pre-commit local. Os testes de
+      # integração sobem Postgres via Testcontainers, no Docker do runner.
       - name: pre-commit
         run: uv run pre-commit run --all-files --show-diff-on-failure
+
+  frontend:
+    name: Frontend (${{ matrix.app }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [react, vue, angular]
+    defaults:
+      run:
+        working-directory: frontend/${{ matrix.app }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Habilitar pnpm
+        run: corepack enable pnpm
+
+      - name: Instalar dependências
+        run: pnpm install --frozen-lockfile
+
+      # O contrato é a fonte da verdade: se os tipos gerados divergirem do que
+      # está versionado, alguém mexeu na API sem rodar `make codegen`.
+      - name: Os tipos gerados estão em dia com o contrato?
+        run: |
+          pnpm run codegen
+          git diff --exit-code src/data/api/schema.d.ts
+
+      - name: Portões
+        run: pnpm run lint
+
+      - name: Testes
+        run: pnpm run test
+
+      - name: Build
+        run: pnpm run build
 
   contract:
     name: Contrato
@@ -42,7 +80,6 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-          cache-dependency-glob: uv.lock
 
       - name: Subir a stack
         run: |
@@ -58,6 +95,56 @@ jobs:
       - name: Logs da api em caso de falha
         if: failure()
         run: docker compose logs api
+
+      - name: Derrubar
+        if: always()
+        run: make clean
+
+  e2e:
+    name: E2E (${{ matrix.app }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [react, vue, angular]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Habilitar pnpm
+        run: corepack enable pnpm
+
+      - name: Subir o backend
+        run: |
+          cp .env.example .env
+          make up
+          make migrate
+
+      - name: Instalar o frontend
+        working-directory: frontend/${{ matrix.app }}
+        run: pnpm install --frozen-lockfile
+
+      - name: Instalar o Playwright
+        working-directory: e2e
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
+
+      # O mesmo roteiro, para os três. Se algum precisar de tratamento
+      # especial aqui, o comportamento divergiu.
+      - name: Jornada completa
+        run: ./scripts/e2e.sh ${{ matrix.app }}
+
+      - name: Relatório em caso de falha
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-${{ matrix.app }}
+          path: e2e/playwright-report/
+          retention-days: 7
 
       - name: Derrubar
         if: always()

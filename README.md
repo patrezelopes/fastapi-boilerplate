@@ -8,8 +8,11 @@ spec para trabalhar com o Claude Code.
 Boot, Go e Rust — que compartilham a mesma arquitetura, o mesmo contrato de API e os mesmos
 portões de qualidade.
 
-> Os três frontends (React, Vue e Angular) e a reorganização em monorepo chegam nas
-> próximas fases do roadmap da família.
+Traz três frontends de referência — **React, Vue e Angular** — equivalentes por contrato:
+as mesmas seis telas, o mesmo comportamento, verificados por **um único roteiro do
+Playwright** que roda contra os três sem uma linha de diferença.
+
+> A reorganização em monorepo (`backend/` na raiz, compose único) chega na Fase 3.
 
 ## Arquitetura
 
@@ -112,6 +115,48 @@ nos seis repositórios da família. Mudança na API vai sempre no contrato prime
 make up
 make contract-test    # Schemathesis, gerando casos a partir do contrato
 ```
+
+## Frontends
+
+```
+frontend/
+├── react/     React 19 · TanStack Query · Zustand · RHF + Zod
+├── vue/       Vue 3.5 · TanStack Query · Pinia · VeeValidate + Zod
+└── angular/   Angular 22 · signals · resource() · Reactive Forms
+```
+
+Cada um tem seu próprio `Makefile` e `docker-compose.yml`, com os mesmos alvos do backend.
+
+```bash
+cd frontend/react && make lint test     # portões de um SPA
+make codegen                            # regera os tipos dos três do contrato
+make e2e FRONT=vue                      # Playwright contra um
+make e2e-all                            # o mesmo roteiro nos três
+```
+
+### Camadas
+
+```
+        ┌──────────────┐
+app  ──▶│ features  ui │──▶  data  ──▶  domain
+        └──────────────┘
+```
+
+`features` e `ui` são irmãs: `features` não conhece componente e `ui` não conhece API.
+Quem junta as duas é `app`. Verificado por `dependency-cruiser`.
+
+**`domain/` e `data/` são idênticos nos três** — TypeScript puro, sem framework. O que
+precisa de idioma próprio é `features`, `ui` e `app`.
+
+### Sessão no navegador
+
+Access token só em memória; refresh em cookie `httpOnly`. Recarregar a página perde o
+access e o cookie o traz de volta em silêncio. A renovação é de voo único: várias
+requisições em `401` esperam a mesma promessa — sem isso, a detecção de reuso do backend
+derrubaria a sessão tratando o próprio cliente como atacante.
+
+Cobertura: **80%** global e **90%** em `domain/` e `data/`. `app/` fica de fora, porque
+quem a verifica é o Playwright.
 
 ## Qualidade
 
