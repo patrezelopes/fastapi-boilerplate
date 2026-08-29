@@ -30,10 +30,10 @@ const problem = (status: number, body: unknown) =>
     headers: { "content-type": "application/problem+json" },
   });
 
-let fetchMock: ReturnType<typeof vi.fn>;
+let fetchMock: ReturnType<typeof vi.fn<typeof fetch>>;
 
 beforeEach(() => {
-  fetchMock = vi.fn();
+  fetchMock = vi.fn<typeof fetch>();
   vi.stubGlobal("fetch", fetchMock);
 });
 
@@ -110,8 +110,8 @@ describe("HttpClient", () => {
     // Sem isto, N chamadas em 401 disparariam N rotações — e a detecção de
     // reuso do backend derrubaria a sessão, tratando o cliente como atacante.
     const tokens = holder("velho");
-    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
-      if (url.endsWith("/auth/refresh")) {
+    fetchMock.mockImplementation((url, init) => {
+      if (typeof url === "string" && url.endsWith("/auth/refresh")) {
         return Promise.resolve(json({ access_token: "novo", expires_in: 900 }));
       }
       const authorization = new Headers(init?.headers).get("Authorization");
@@ -129,7 +129,9 @@ describe("HttpClient", () => {
       client.request("/auth/me"),
     ]);
 
-    const rotacoes = fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/auth/refresh"));
+    const rotacoes = fetchMock.mock.calls.filter(
+      ([url]) => typeof url === "string" && url.endsWith("/auth/refresh"),
+    );
     expect(rotacoes).toHaveLength(1);
   });
 
