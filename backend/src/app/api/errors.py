@@ -6,6 +6,8 @@ mão — ver `.claude/rules/errors.md`.
 
 import logging
 import uuid
+from collections.abc import Sequence
+from typing import Any
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
@@ -155,6 +157,17 @@ async def handle_domain_error(_: Request, exc: Exception) -> JSONResponse:
 async def handle_validation_error(_: Request, exc: Exception) -> JSONResponse:
     raw_errors = exc.errors() if isinstance(exc, RequestValidationError) else []
 
+    # Corpo ilegível ou ausente é 400, não 422: não há schema a violar, e
+    # portanto não há campo a nomear no `errors[]`. O Pydantic reporta os dois
+    # casos com o tipo `json_invalid` ou `missing` na raiz do corpo.
+    if _is_unreadable_body(raw_errors):
+        return problem_response(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            slug="bad-request",
+            title="Bad Request",
+            detail="A requisição não pôde ser lida.",
+        )
+
     return problem_response(
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         slug="validation",
@@ -165,6 +178,28 @@ async def handle_validation_error(_: Request, exc: Exception) -> JSONResponse:
             for error in raw_errors
         ],
     )
+
+
+def _is_unreadable_body(raw_errors: Sequence[Any]) -> bool:
+    """Verdadeiro quando o corpo inteiro é o problema, e não um campo dele.
+
+    O Pydantic reporta `json_invalid` com a posição do byte que quebrou o
+    parser — `('body', 12)` —, e um corpo ausente como `missing` na raiz. Um
+    campo faltando dentro de um corpo legível é `missing` em `('body', 'email')`,
+    e esse continua sendo 422.
+    """
+    if not raw_errors:
+        return False
+
+    def e_do_corpo_inteiro(error: Any) -> bool:
+        tipo = error.get("type")
+
+        if tipo == "json_invalid":
+            return True
+
+        return tipo == "missing" and tuple(error.get("loc") or ()) == ("body",)
+
+    return all(e_do_corpo_inteiro(error) for error in raw_errors)
 
 
 async def handle_unexpected_error(_: Request, exc: Exception) -> JSONResponse:

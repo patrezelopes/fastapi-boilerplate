@@ -114,3 +114,34 @@ def test_rota_inexistente_usa_o_envelope(client: TestClient) -> None:
     assert response.status_code == 404
     assert response.headers["content-type"].startswith("application/problem+json")
     assert response.json()["type"].endswith("/not-found")
+
+
+@pytest.mark.integration
+def test_corpo_que_nao_e_json_devolve_400(client: TestClient) -> None:
+    # Não há schema a violar, e portanto não há campo a nomear no `errors[]`.
+    response = client.post(
+        "/api/v1/auth/register",
+        content="{isto não é json",
+        headers={"content-type": "application/json"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["type"].endswith("/errors/bad-request")
+
+
+@pytest.mark.integration
+def test_requisicao_sem_corpo_devolve_400(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/auth/register", content="", headers={"content-type": "application/json"}
+    )
+
+    assert response.status_code == 400
+
+
+@pytest.mark.integration
+def test_corpo_json_com_campo_faltando_segue_422(client: TestClient) -> None:
+    # O corpo é legível; o que falhou foi o schema. Aí o envelope nomeia campos.
+    response = client.post("/api/v1/auth/register", json={})
+
+    assert response.status_code == 422
+    assert response.json()["errors"]
