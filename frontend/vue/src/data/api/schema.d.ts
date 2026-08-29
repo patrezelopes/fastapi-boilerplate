@@ -593,6 +593,7 @@ export interface operations {
                     "application/json": components["schemas"]["UserPage"];
                 };
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             422: components["responses"]["ValidationFailed"];
         };
