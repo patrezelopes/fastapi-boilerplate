@@ -23,7 +23,7 @@ export function UsersPage() {
         <h1 className="text-2xl font-semibold">Usuários</h1>
         <Button
           onClick={() => {
-            void navigate("/register");
+            void navigate("/users/new");
           }}
         >
           Novo usuário

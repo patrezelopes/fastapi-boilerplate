@@ -1,0 +1,14 @@
+# Sobe o frontend sozinho, apontando para um backend que já esteja de pé.
+# Para subir a stack inteira, use o compose da raiz.
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${WEB_PORT:-5173}:5173"
+    environment:
+      VITE_API_TARGET: ${VITE_API_TARGET:-http://host.docker.internal:8000}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

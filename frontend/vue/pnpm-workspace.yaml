@@ -1,0 +1,5 @@
+# pnpm 11 exige autorização explícita para scripts de instalação.
+# Escrito por `pnpm approve-builds --all`.
+allowBuilds:
+  esbuild: true
+  vue-demi: true
