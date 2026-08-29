@@ -39,8 +39,10 @@ done
 echo "→ subindo a stack com FRONT=$FRONT"
 COMPOSE_PROFILES="$FRONT" docker compose up -d --wait
 
+# Delegado ao Makefile: cada stack aplica migration do seu jeito, e este
+# script é idêntico nos seis repositórios da família.
 echo "→ aplicando migrations"
-docker compose exec -T api alembic upgrade head >/dev/null
+make migrate >/dev/null
 
 echo "→ Playwright contra $FRONT em $WEB_URL"
 cd "$ROOT/e2e"

@@ -2,7 +2,9 @@ from datetime import datetime
 from typing import Self
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, model_validator
+
+from app.schemas.contract import Email, Name, Secret
 
 
 class UserResponse(BaseModel):
@@ -14,19 +16,39 @@ class UserResponse(BaseModel):
 
 
 class UserCreate(BaseModel):
-    email: EmailStr = Field(max_length=254)
-    name: str = Field(min_length=1, max_length=120)
-    password: str = Field(min_length=12, max_length=128)
+    model_config = ConfigDict(extra="forbid")
+
+    email: Email
+    name: Name
+    password: Secret
 
 
 class UserUpdate(BaseModel):
-    email: EmailStr | None = Field(default=None, max_length=254)
-    name: str | None = Field(default=None, min_length=1, max_length=120)
+    """Atualização parcial: campo ausente permanece inalterado.
+
+    Campo presente com ``null`` é outra coisa — é violação do schema, porque não
+    existe "apagar o e-mail". O tipo opcional funde os dois estados, então quem
+    os separa é o ``model_fields_set``, que sabe quais chaves de fato vieram.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: Email | None = None
+    name: Name | None = None
 
     @model_validator(mode="after")
-    def _reject_empty_body(self) -> Self:
-        if self.email is None and self.name is None:
+    def _reject_null_and_empty_body(self) -> Self:
+        explicitamente_nulos = [
+            campo
+            for campo in ("email", "name")
+            if campo in self.model_fields_set and getattr(self, campo) is None
+        ]
+        if explicitamente_nulos:
+            raise ValueError(f"{', '.join(explicitamente_nulos)}: não pode ser nulo")
+
+        if not self.model_fields_set:
             raise ValueError("informe ao menos um campo para atualizar")
+
         return self
 
 

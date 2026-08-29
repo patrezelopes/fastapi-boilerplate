@@ -5,7 +5,9 @@ from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.api.dependencies import current_user
 from app.api.errors import CONFLICT, NOT_FOUND, UNAUTHORIZED, UNPROCESSABLE
+from app.api.query import only_declared
 from app.entities.user import User
+from app.schemas.contract import SearchTerm
 from app.schemas.user import PageMeta, UserCreate, UserPage, UserResponse, UserUpdate
 from app.use_cases.create_user import CreateUserUseCase
 from app.use_cases.delete_user import DeleteUserUseCase
@@ -22,12 +24,18 @@ UsersRouter = APIRouter(
 )
 
 
-@UsersRouter.get("", response_model=UserPage)
+@UsersRouter.get(
+    "",
+    response_model=UserPage,
+    dependencies=[Depends(only_declared("page", "per_page", "q"))],
+)
 @inject
 def list_users(
-    page: int = Query(default=1, ge=1),
+    # O teto de `page` existe porque sem ele o contrato promete aceitar um
+    # inteiro de 25 dígitos, que estoura o int das outras stacks.
+    page: int = Query(default=1, ge=1, le=1_000_000),
     per_page: int = Query(default=20, ge=1, le=100),
-    q: str | None = Query(default=None, max_length=120),
+    q: SearchTerm | None = Query(default=None),
     use_case: ListUsersUseCase = Depends(Provide["list_users_uc"]),
 ) -> UserPage:
     return _to_page(use_case.execute(term=q, page=page, per_page=per_page))

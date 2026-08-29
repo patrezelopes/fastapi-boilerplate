@@ -190,6 +190,11 @@ def _field_name(location: object) -> str:
 
 
 def register_error_handlers(app: FastAPI) -> None:
+    # O import é local para não criar ciclo: `query` importa `problem_response`
+    # daqui.
+    from app.api.query import UnknownQueryParams, unknown_query_params_handler
+
+    app.add_exception_handler(UnknownQueryParams, unknown_query_params_handler)
     app.add_exception_handler(DomainError, handle_domain_error)
     app.add_exception_handler(RequestValidationError, handle_validation_error)
     app.add_exception_handler(StarletteHTTPException, handle_http_exception)

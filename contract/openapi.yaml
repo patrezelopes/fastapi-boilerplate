@@ -191,7 +191,9 @@ paths:
           in: query
           description: Busca parcial e insensível a maiúsculas por e-mail ou nome.
           required: false
-          schema: { type: string, maxLength: 120 }
+          # Sem o padrão, o contrato promete aceitar um NUL — que não cabe num
+          # `text` do Postgres e chega ao banco como 500.
+          schema: { type: string, maxLength: 120, pattern: '^[^\x00-\x1f\x7f]{0,120}$' }
       responses:
         "200":
           description: Página de usuários.
@@ -243,6 +245,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
     patch:
       tags: [users]
       summary: Atualizar usuário
@@ -280,6 +284,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
 
 components:
 
@@ -300,7 +306,10 @@ components:
       name: page
       in: query
       required: false
-      schema: { type: integer, minimum: 1, default: 1 }
+      # O teto existe porque sem ele o contrato promete aceitar um inteiro de
+      # 25 dígitos, que estoura o int de todas as seis stacks. Uma página além
+      # do fim já devolve lista vazia; pedir a milionésima não tem uso.
+      schema: { type: integer, minimum: 1, maximum: 1000000, default: 1 }
     PerPage:
       name: per_page
       in: query
@@ -380,8 +389,27 @@ components:
       # É deliberadamente um subconjunto conservador: tudo que ele aceita é
       # aceito pela API. O contrário — contrato mais frouxo que a implementação —
       # é que faria o contrato mentir para quem o consome.
-      pattern: '^[A-Za-z0-9_%+-]{1,20}(?:\.[A-Za-z0-9_%+-]{1,10}){0,2}@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,20}[A-Za-z0-9])?\.){1,3}(?!(?:test|invalid|localhost)$)[A-Za-z]{2,10}$'
+      pattern: '^[A-Za-z0-9_%+-]{1,20}(?:\.[A-Za-z0-9_%+-]{1,20}){0,3}@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,20}[A-Za-z0-9])?\.){1,3}(?!(?:test|invalid|localhost)$)[A-Za-z]{2,10}$'
       examples: ["ana@exemplo.com"]
+
+    Name:
+      type: string
+      minLength: 1
+      maxLength: 120
+      # Ao menos um caractere que não seja espaço, e nenhum caractere de
+      # controle. Um nome só de espaços não é nome; e o byte NUL sequer cabe
+      # num `text` do Postgres, então aceitá-lo viraria 500 na escrita.
+      pattern: '^(?=\s*\S)[^\x00-\x1f\x7f]{1,120}$'
+      examples: ["Ana Souza"]
+
+    Secret:
+      type: string
+      format: password
+      minLength: 12
+      maxLength: 128
+      # O comprimento é contado em pontos de código; caractere de controle é
+      # recusado pelo mesmo motivo do nome.
+      pattern: '^[^\x00-\x1f\x7f]{12,128}$'
 
     Problem:
       type: object
@@ -438,26 +466,29 @@ components:
       properties:
         id: { type: string, format: uuid }
         email: { $ref: "#/components/schemas/Email" }
-        name: { type: string }
+        name: { $ref: "#/components/schemas/Name" }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
     RegisterRequest:
       type: object
       required: [email, name, password]
+      # Campo desconhecido é erro, não algo a ignorar em silêncio:
+      # é assim que um `passwrod` no cliente vira uma conta sem senha.
+      additionalProperties: false
       properties:
         email: { $ref: "#/components/schemas/Email" }
-        name: { type: string, minLength: 1, maxLength: 120 }
+        name: { $ref: "#/components/schemas/Name" }
         password:
-          type: string
-          format: password
-          minLength: 12
-          maxLength: 128
+          allOf: [{ $ref: "#/components/schemas/Secret" }]
           description: Mínimo de 12 caracteres. Hash com argon2id.
 
     LoginRequest:
       type: object
       required: [email, password]
+      # Campo desconhecido é erro, não algo a ignorar em silêncio:
+      # é assim que um `passwrod` no cliente vira uma conta sem senha.
+      additionalProperties: false
       properties:
         email: { $ref: "#/components/schemas/Email" }
         password: { type: string, format: password }
@@ -477,17 +508,24 @@ components:
     UserCreate:
       type: object
       required: [email, name, password]
+      # Campo desconhecido é erro, não algo a ignorar em silêncio:
+      # é assim que um `passwrod` no cliente vira uma conta sem senha.
+      additionalProperties: false
       properties:
         email: { $ref: "#/components/schemas/Email" }
-        name: { type: string, minLength: 1, maxLength: 120 }
-        password: { type: string, format: password, minLength: 12, maxLength: 128 }
+        name: { $ref: "#/components/schemas/Name" }
+        password: { $ref: "#/components/schemas/Secret" }
 
     UserUpdate:
       type: object
       minProperties: 1
+      # Campo ausente permanece inalterado. Campo presente com `null` é erro:
+      # não existe "apagar o e-mail". Distinguir as duas situações exige, em
+      # várias das seis stacks, mais do que um tipo opcional.
+      additionalProperties: false  # campo desconhecido também
       properties:
         email: { $ref: "#/components/schemas/Email" }
-        name: { type: string, minLength: 1, maxLength: 120 }
+        name: { $ref: "#/components/schemas/Name" }
 
     PageMeta:
       type: object

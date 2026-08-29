@@ -1,16 +1,25 @@
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict
+
+from app.schemas.contract import Email, Name, Secret
 
 
 class RegisterRequest(BaseModel):
-    email: EmailStr = Field(max_length=254)
-    name: str = Field(min_length=1, max_length=120)
-    password: str = Field(min_length=12, max_length=128)
+    # `extra="forbid"` traduz o `additionalProperties: false` do contrato. Sem
+    # ele, um `passwrod` digitado errado no cliente cria a conta com uma senha
+    # que ninguém escolheu — em silêncio.
+    model_config = ConfigDict(extra="forbid")
+
+    email: Email
+    name: Name
+    password: Secret
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    model_config = ConfigDict(extra="forbid")
+
+    email: Email
     password: str
 
 

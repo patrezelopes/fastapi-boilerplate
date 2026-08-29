@@ -211,3 +211,124 @@ def test_remover_id_inexistente_devolve_404(
     client: TestClient, auth_headers: dict[str, str]
 ) -> None:
     assert client.delete(f"{BASE}/{uuid4()}", headers=auth_headers).status_code == 404
+
+
+@pytest.mark.integration
+def test_parametro_de_consulta_desconhecido_devolve_422(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    # Ignorar em silêncio é o que faz um `?perPage=5` devolver vinte itens sem
+    # ninguém perceber o erro de digitação.
+    response = client.get(f"{BASE}?perPage=5", headers=auth_headers)
+
+    assert response.status_code == 422
+    assert response.json()["errors"][0]["field"] == "perPage"
+
+
+@pytest.mark.integration
+def test_page_acima_do_teto_devolve_422(client: TestClient, auth_headers: dict[str, str]) -> None:
+    response = client.get(f"{BASE}?page=1093245913781162817355776", headers=auth_headers)
+
+    assert response.status_code == 422
+
+
+@pytest.mark.integration
+def test_termo_de_busca_com_caractere_de_controle_devolve_422_e_nao_500(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    response = client.get(f"{BASE}?q=busca%00nula", headers=auth_headers)
+
+    assert response.status_code == 422
+
+
+@pytest.mark.integration
+def test_patch_com_campo_explicitamente_nulo_devolve_422(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    criado = _criar(client, auth_headers, email="nula@exemplo.com", name="Nula")
+
+    # Ausente significa "não mexa"; `null` é violação do schema, porque não
+    # existe "apagar o e-mail".
+    response = client.patch(
+        f"{BASE}/{criado['id']}", headers=auth_headers, json={"email": None, "name": "Outra"}
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.integration
+def test_patch_com_campo_ausente_segue_inalterado(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    criado = _criar(client, auth_headers, email="mantem@exemplo.com", name="Mantem")
+
+    response = client.patch(
+        f"{BASE}/{criado['id']}", headers=auth_headers, json={"name": "Mantem Lima"}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["email"] == "mantem@exemplo.com"
+
+
+@pytest.mark.integration
+def test_corpo_com_campo_desconhecido_devolve_422(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    response = client.post(
+        BASE,
+        headers=auth_headers,
+        json={
+            "email": "typo@exemplo.com",
+            "name": "Typo",
+            "password": "senha-bem-longa-123",
+            "passwrod": "x",
+        },
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("campo", "valor"),
+    [
+        ("name", "   "),
+        ("name", "Ana\x00"),
+        ("password", "senha-com\nquebra-longa"),
+        ("email", "ana@exemplo.test"),
+        ("email", "ana@com"),
+    ],
+)
+def test_entrada_fora_do_contrato_devolve_422(
+    client: TestClient, auth_headers: dict[str, str], campo: str, valor: str
+) -> None:
+    corpo = {
+        "email": "valido@exemplo.com",
+        "name": "Valido",
+        "password": "senha-bem-longa-123",
+    }
+    corpo[campo] = valor
+
+    response = client.post(BASE, headers=auth_headers, json=corpo)
+
+    assert response.status_code == 422, response.text
+
+
+@pytest.mark.integration
+def test_nome_com_caractere_c1_e_aceito_porque_o_contrato_o_aceita(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    # U+0080..U+009F e controle para muitas bibliotecas, mas o padrao do
+    # contrato so recusa \x00-\x1f e \x7f. Recusar aqui deixaria a API mais
+    # restrita que o contrato.
+    response = client.post(
+        BASE,
+        headers=auth_headers,
+        json={
+            "email": "c1@exemplo.com",
+            "name": "Ana\x9aSouza",
+            "password": "senha-bem-longa-123",
+        },
+    )
+
+    assert response.status_code == 201, response.text

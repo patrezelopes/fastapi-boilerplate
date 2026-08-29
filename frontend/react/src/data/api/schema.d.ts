@@ -192,6 +192,10 @@ export interface components {
          * @example ana@exemplo.com
          */
         Email: string;
+        /** @example Ana Souza */
+        Name: string;
+        /** Format: password */
+        Secret: string;
         /** @description Envelope de erro conforme a RFC 9457. */
         Problem: {
             /**
@@ -228,7 +232,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             email: components["schemas"]["Email"];
-            name: string;
+            name: components["schemas"]["Name"];
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
@@ -236,12 +240,9 @@ export interface components {
         };
         RegisterRequest: {
             email: components["schemas"]["Email"];
-            name: string;
-            /**
-             * Format: password
-             * @description Mínimo de 12 caracteres. Hash com argon2id.
-             */
-            password: string;
+            name: components["schemas"]["Name"];
+            /** @description Mínimo de 12 caracteres. Hash com argon2id. */
+            password: components["schemas"]["Secret"];
         };
         LoginRequest: {
             email: components["schemas"]["Email"];
@@ -257,13 +258,12 @@ export interface components {
         };
         UserCreate: {
             email: components["schemas"]["Email"];
-            name: string;
-            /** Format: password */
-            password: string;
+            name: components["schemas"]["Name"];
+            password: components["schemas"]["Secret"];
         };
         UserUpdate: {
             email?: components["schemas"]["Email"];
-            name?: string;
+            name?: components["schemas"]["Name"];
         };
         PageMeta: {
             page: number;
@@ -647,6 +647,7 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
         };
     };
     usersDelete: {
@@ -669,6 +670,7 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
         };
     };
     usersUpdate: {
