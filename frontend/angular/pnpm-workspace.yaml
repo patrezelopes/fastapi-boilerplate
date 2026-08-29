@@ -1,0 +1,7 @@
+# pnpm 11 exige autorização explícita para scripts de instalação.
+# Escrito por `pnpm approve-builds --all`.
+allowBuilds:
+  "@parcel/watcher": true
+  esbuild: true
+  lmdb: true
+  msgpackr-extract: true

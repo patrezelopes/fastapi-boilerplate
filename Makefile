@@ -1,9 +1,10 @@
 .DEFAULT_GOAL := help
 .PHONY: help build up down restart logs shell lint ci test clean \
-        migrate seed contract-test arch skills-diff pre-commit-install
+        migrate seed contract-test codegen e2e e2e-all arch skills-diff pre-commit-install
 
 COMPOSE = docker compose
 SERVICE = api
+FRONT  ?= react
 
 help: ## Lista os alvos disponíveis
 	@grep -hE '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -61,6 +62,18 @@ seed: ## Popula o banco com dados de desenvolvimento (dentro do container)
 
 contract-test: ## Valida a api de pé contra contract/openapi.yaml
 	./scripts/contract-test.sh
+
+codegen: ## Regera os tipos TypeScript dos três frontends a partir do contrato
+	@for f in react vue angular; do \
+		echo "→ codegen frontend/$$f"; \
+		$(MAKE) -C frontend/$$f codegen || exit 1; \
+	done
+
+e2e: ## Playwright contra um dos SPAs — make e2e FRONT=vue
+	./scripts/e2e.sh $(FRONT)
+
+e2e-all: ## Playwright contra os três, com o mesmo roteiro
+	@for f in react vue angular; do ./scripts/e2e.sh $$f || exit 1; done
 
 skills-diff: ## Acusa divergência do kit .claude/ contra a referência
 	./scripts/skills-diff.sh
