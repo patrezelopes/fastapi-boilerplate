@@ -85,16 +85,23 @@ repos:
         files: ^backend/.*\.py$
 
   # ─── frontends ─────────────────────────────────────────────────────────────
-  # Só a formatação, que é rápida. Lint, tipos, camadas e testes ficam no CI e
-  # em `make ci` — rodá-los a cada commit tornaria o hook insuportável.
+  # Só a formatação, que é rápida. Lint, tipos, camadas e testes ficam nos jobs
+  # de frontend do CI — rodá-los a cada commit tornaria o hook insuportável.
   #
   # Esta verificação existe porque a formatação de um SPA já quebrou o CI duas
-  # vezes por edição feita depois da última rodada local dos portões.
+  # vezes, por edição feita depois da última rodada local dos portões.
+  #
+  # Sai em silêncio sem pnpm: o job Python do CI não tem Node, e ali quem
+  # verifica formatação são os próprios jobs de frontend.
   - repo: local
     hooks:
       - id: prettier-frontend
         name: prettier (frontends)
-        entry: bash -c 'for f in react vue angular; do (cd "frontend/$f" && pnpm exec prettier --check .) || exit 1; done'
+        entry: >-
+          bash -c 'command -v pnpm >/dev/null 2>&1 || exit 0;
+          for f in react vue angular; do
+          (cd "frontend/$f" && pnpm exec prettier --check .) || exit 1;
+          done'
         language: system
         pass_filenames: false
         files: ^frontend/
