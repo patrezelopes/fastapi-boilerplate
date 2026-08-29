@@ -7,7 +7,15 @@ Traz também os **três frontends de referência** — React, Vue e Angular — 
 contrato: as mesmas telas, o mesmo comportamento, verificados por um único roteiro do
 Playwright que roda contra os três.
 
-> A reorganização em monorepo (`backend/` na raiz, compose único) chega na Fase 3.
+```
+backend/                         FastAPI, Clean Architecture
+frontend/react · vue · angular   três SPAs equivalentes
+contract/openapi.yaml            a fonte da verdade da API
+e2e/                             um roteiro Playwright, para os três
+```
+
+Raiz, `backend/` e cada frontend têm seu próprio `Makefile` e `docker-compose.yml`.
+Ver a skill `monorepo-navigation`.
 
 ## Como trabalhamos aqui
 
@@ -37,18 +45,19 @@ Mudança na API vai **sempre** nesta ordem: contrato primeiro, implementação d
 ## Comandos
 
 ```bash
-make up                  # db + api
-make lint                # portões
-make test                # testes
+make up                  # db + api + react
+make up FRONT=angular    # troca o frontend
+make up FRONT=none       # só backend
+make lint                # portões do backend + do frontend selecionado
+make test
 make ci                  # tudo que o CI roda
+make codegen             # regera os tipos dos três frontends do contrato
 make contract-test       # o backend cumpre contract/openapi.yaml?
-make codegen             # regera os tipos dos três frontends
 make e2e FRONT=vue       # Playwright contra um SPA
 make e2e-all             # o mesmo roteiro nos três
 ```
 
-Cada frontend tem seu próprio `Makefile` com os mesmos alvos:
-`cd frontend/react && make lint test`.
+Os filhos rodam sozinhos: `make -C backend test`, `make -C frontend/vue lint`.
 
 
 

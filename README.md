@@ -12,7 +12,19 @@ Traz três frontends de referência — **React, Vue e Angular** — equivalente
 as mesmas seis telas, o mesmo comportamento, verificados por **um único roteiro do
 Playwright** que roda contra os três sem uma linha de diferença.
 
-> A reorganização em monorepo (`backend/` na raiz, compose único) chega na Fase 3.
+## Estrutura
+
+```
+Makefile · docker-compose.yml    orquestram tudo, da raiz
+contract/openapi.yaml            a fonte da verdade da API
+backend/                         FastAPI · Clean Architecture
+frontend/react · vue · angular   três SPAs equivalentes
+e2e/                             um roteiro Playwright, para os três
+.claude/ · specs/ · docs/        o kit de trabalho orientado a spec
+```
+
+Raiz, `backend/` e cada frontend têm **seu próprio** `Makefile` e `docker-compose.yml`.
+A raiz orquestra; os filhos rodam sozinhos.
 
 ## Arquitetura
 
@@ -55,15 +67,22 @@ build. Os detalhes estão em [`.claude/rules/architecture.md`](.claude/rules/arc
 
 ```bash
 cp .env.example .env
-uv sync --extra dev
-uv run pre-commit install
-
-make up          # sobe api + Postgres e aguarda o healthcheck
-make migrate     # aplica as migrations
-make seed        # popula com dados de desenvolvimento
+make install     # backend + os três frontends + e2e
+make up          # db + api + react, aguardando os healthchecks
+make migrate
+make seed
 ```
 
-A API sobe em `http://localhost:8000`, com documentação em `/docs`.
+A API sobe em `http://localhost:8000` com documentação em `/docs`, e o frontend em
+`http://localhost:5173`.
+
+```bash
+make up FRONT=angular    # troca o frontend
+make up FRONT=vue
+make up FRONT=none       # só backend
+```
+
+Implementado com perfis do Compose: sem o perfil, o serviço web nem é construído.
 
 ## Endpoints
 
@@ -128,10 +147,10 @@ frontend/
 Cada um tem seu próprio `Makefile` e `docker-compose.yml`, com os mesmos alvos do backend.
 
 ```bash
-cd frontend/react && make lint test     # portões de um SPA
-make codegen                            # regera os tipos dos três do contrato
-make e2e FRONT=vue                      # Playwright contra um
-make e2e-all                            # o mesmo roteiro nos três
+make -C frontend/react lint test    # portões de um SPA
+make codegen                        # regera os tipos dos três do contrato
+make e2e FRONT=vue                  # Playwright contra um
+make e2e-all                        # o mesmo roteiro nos três
 ```
 
 ### Camadas
@@ -182,16 +201,16 @@ O CI roda **os mesmos hooks** do pre-commit. Vermelho no CI reproduz com `make c
 ## Testes
 
 ```
-src/tests/
+backend/src/tests/
 ├── conftest.py       fakes dos ports e fixtures compartilhadas
 ├── unit/             entities e casos de uso — sem banco
 └── integration/      rotas, envelope de erro e repositories
 ```
 
 ```bash
-uv run pytest -m unit           # rápido, dispensa Docker
-uv run pytest -m integration    # sobe Postgres via Testcontainers
-uv run pytest --cov=app --cov-report=html
+make -C backend test
+uv --directory backend run pytest -m unit          # rápido, dispensa Docker
+uv --directory backend run pytest -m integration   # Postgres via Testcontainers
 ```
 
 Os testes de rota usam o container com fakes; os de repository, Postgres de verdade.
@@ -214,7 +233,7 @@ e seis regras. As specs [`0001`](specs/0001-health/), [`0002`](specs/0002-auth/)
 ## Migrações
 
 ```bash
-uv run alembic revision --autogenerate -m "descricao"
+uv --directory backend run alembic revision --autogenerate -m "descricao"
 make migrate
 ```
 

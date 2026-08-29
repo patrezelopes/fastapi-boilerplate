@@ -21,15 +21,15 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-          cache-dependency-glob: uv.lock
+          cache-dependency-glob: backend/uv.lock
 
       - name: Instalar dependências
-        run: uv sync --extra dev --frozen
+        run: uv --directory backend sync --extra dev --frozen
 
-      # Roda exatamente os mesmos hooks do pre-commit local. Os testes de
-      # integração sobem Postgres via Testcontainers, no Docker do runner.
+      # Os mesmos hooks do pre-commit local. Os testes de integração sobem
+      # Postgres via Testcontainers, no Docker do runner.
       - name: pre-commit
-        run: uv run pre-commit run --all-files --show-diff-on-failure
+        run: uv --directory backend run pre-commit run --all-files --show-diff-on-failure
 
   frontend:
     name: Frontend (${{ matrix.app }})
@@ -76,18 +76,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Instalar uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-
-      - name: Subir a stack
+      - name: Subir a stack, só o backend
         run: |
           cp .env.example .env
-          make up
-
-      - name: Aplicar migrations
-        run: make migrate
+          make up FRONT=none
+          make migrate
 
       - name: Validar contra contract/openapi.yaml
         run: make contract-test
@@ -117,26 +110,19 @@ jobs:
       - name: Habilitar pnpm
         run: corepack enable pnpm
 
-      - name: Subir o backend
-        run: |
-          cp .env.example .env
-          make up
-          make migrate
-
-      - name: Instalar o frontend
-        working-directory: frontend/${{ matrix.app }}
-        run: pnpm install --frozen-lockfile
-
       - name: Instalar o Playwright
         working-directory: e2e
         run: |
           pnpm install --frozen-lockfile
           pnpm exec playwright install --with-deps chromium
 
-      # O mesmo roteiro, para os três. Se algum precisar de tratamento
-      # especial aqui, o comportamento divergiu.
+      # A stack inteira pelo compose da raiz, como em qualquer máquina.
+      # O mesmo roteiro para os três: se algum precisar de tratamento especial
+      # aqui, o comportamento divergiu.
       - name: Jornada completa
-        run: ./scripts/e2e.sh ${{ matrix.app }}
+        run: |
+          cp .env.example .env
+          make e2e FRONT=${{ matrix.app }}
 
       - name: Relatório em caso de falha
         if: failure()
@@ -145,6 +131,10 @@ jobs:
           name: playwright-${{ matrix.app }}
           path: e2e/playwright-report/
           retention-days: 7
+
+      - name: Logs em caso de falha
+        if: failure()
+        run: docker compose --profile ${{ matrix.app }} logs
 
       - name: Derrubar
         if: always()

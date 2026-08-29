@@ -1,79 +1,118 @@
-.DEFAULT_GOAL := help
-.PHONY: help build up down restart logs shell lint ci test clean \
-        migrate seed contract-test codegen e2e e2e-all arch skills-diff pre-commit-install
+# ─────────────────────────────────────────────────────────────────────────────
+#  Boilerplate LopesTech — orquestração da raiz
+#
+#  Os mesmos alvos existem em backend/ e em cada frontend/<framework>/.
+#  Esta raiz delega; os filhos rodam sozinhos.
+#
+#    make up                 sobe db + api + react (padrão)
+#    make up FRONT=angular   sobe db + api + angular
+#    make up FRONT=none      só backend
+# ─────────────────────────────────────────────────────────────────────────────
 
-COMPOSE = docker compose
-SERVICE = api
-FRONT  ?= react
+FRONT   ?= react
+COMPOSE := docker compose
+BACKEND := backend
+WEB     := frontend/$(FRONT)
+
+ifeq ($(FRONT),none)
+  PROFILES :=
+else
+  PROFILES := $(FRONT)
+endif
+
+export COMPOSE_PROFILES = $(PROFILES)
+
+.DEFAULT_GOAL := help
+.PHONY: help build up down restart logs shell lint ci test clean check-front \
+        migrate seed codegen contract-test e2e e2e-all arch skills-diff install
 
 help: ## Lista os alvos disponíveis
 	@grep -hE '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) \
-	  | awk 'BEGIN{FS=":.*?## "}{printf "  \033[1m%-18s\033[0m %s\n", $$1, $$2}'
+	  | awk 'BEGIN{FS=":.*?## "}{printf "  \033[1m%-16s\033[0m %s\n", $$1, $$2}'
+	@echo ""
+	@echo "  FRONT=$(FRONT)  (react | vue | angular | none)"
+
+check-front:
+	@case "$(FRONT)" in \
+	  react|vue|angular|none) ;; \
+	  *) echo "FRONT inválido: '$(FRONT)'. Use react, vue, angular ou none."; exit 1 ;; \
+	esac
+
+install: ## Instala tudo: backend, os três frontends e o e2e
+	$(MAKE) -C $(BACKEND) install
+	@for f in react vue angular; do $(MAKE) -C frontend/$$f install || exit 1; done
+	cd e2e && pnpm install
 
 # ─── ciclo de vida ───────────────────────────────────────────────────────────
 
-build: ## Constrói as imagens
+build: check-front ## Constrói as imagens
 	$(COMPOSE) build
 
-up: ## Sobe a stack e aguarda o healthcheck
+up: check-front ## Sobe a stack e aguarda o healthcheck
 	$(COMPOSE) up -d --wait
 
-down: ## Derruba a stack
-	$(COMPOSE) down
+down: ## Derruba a stack, qualquer que seja o perfil
+	$(COMPOSE) --profile react --profile vue --profile angular down
 
-restart: ## Reinicia a api
-	$(COMPOSE) restart $(SERVICE)
+restart: check-front ## Reinicia a api
+	$(COMPOSE) restart api
 
-logs: ## Segue os logs da api
-	$(COMPOSE) logs -f $(SERVICE)
+logs: check-front ## Segue os logs
+	$(COMPOSE) logs -f
 
 shell: ## Abre um shell na api
-	$(COMPOSE) exec $(SERVICE) bash
+	$(COMPOSE) exec api bash
 
 clean: ## Derruba tudo e remove volumes e órfãos
-	$(COMPOSE) down -v --remove-orphans
+	$(COMPOSE) --profile react --profile vue --profile angular down -v --remove-orphans
 
 # ─── qualidade ───────────────────────────────────────────────────────────────
 
-pre-commit-install: ## Instala o hook local
-	uv run pre-commit install
+lint: check-front ## Portões do backend e do frontend selecionado
+	$(MAKE) -C $(BACKEND) lint
+ifneq ($(FRONT),none)
+	$(MAKE) -C $(WEB) lint
+endif
 
-lint: ## Roda todos os portões nos arquivos versionados
-	uv run pre-commit run --all-files
+test: check-front ## Testes do backend e do frontend selecionado
+	$(MAKE) -C $(BACKEND) test
+ifneq ($(FRONT),none)
+	$(MAKE) -C $(WEB) test
+endif
 
-ci: ## Reproduz localmente o que o CI roda
-	uv run pre-commit run --all-files --show-diff-on-failure
+arch: ## Verifica a regra de dependência no backend
+	$(MAKE) -C $(BACKEND) arch
 
-test: ## Testes com cobertura mínima de 90%
-	uv run pytest --cov=app --cov-report=term-missing --cov-fail-under=90
-
-arch: ## Verifica a regra de dependência
-	uv run lint-imports
-
-# ─── banco ───────────────────────────────────────────────────────────────────
-
-migrate: ## Aplica as migrations (dentro do container)
-	$(COMPOSE) exec -T $(SERVICE) alembic upgrade head
-
-seed: ## Popula o banco com dados de desenvolvimento (dentro do container)
-	$(COMPOSE) exec -T $(SERVICE) python -m app.seed
+ci: ## Reproduz localmente tudo que o CI roda
+	uv --directory $(BACKEND) run pre-commit run --all-files --show-diff-on-failure
+	@for f in react vue angular; do $(MAKE) -C frontend/$$f ci || exit 1; done
 
 # ─── contrato ────────────────────────────────────────────────────────────────
+
+codegen: ## Regera os tipos TypeScript dos três frontends a partir do contrato
+	@for f in react vue angular; do \
+	  echo "→ codegen frontend/$$f"; \
+	  $(MAKE) -C frontend/$$f codegen || exit 1; \
+	done
 
 contract-test: ## Valida a api de pé contra contract/openapi.yaml
 	./scripts/contract-test.sh
 
-codegen: ## Regera os tipos TypeScript dos três frontends a partir do contrato
-	@for f in react vue angular; do \
-		echo "→ codegen frontend/$$f"; \
-		$(MAKE) -C frontend/$$f codegen || exit 1; \
-	done
-
-e2e: ## Playwright contra um dos SPAs — make e2e FRONT=vue
+e2e: check-front ## Playwright contra o frontend selecionado
 	./scripts/e2e.sh $(FRONT)
 
-e2e-all: ## Playwright contra os três, com o mesmo roteiro
+e2e-all: ## O mesmo roteiro nos três SPAs
 	@for f in react vue angular; do ./scripts/e2e.sh $$f || exit 1; done
+
+# ─── banco ───────────────────────────────────────────────────────────────────
+
+migrate: ## Aplica as migrations
+	$(COMPOSE) exec -T api alembic upgrade head
+
+seed: ## Popula o banco com dados de desenvolvimento
+	$(COMPOSE) exec -T api python -m app.seed
+
+# ─── kit do agente ───────────────────────────────────────────────────────────
 
 skills-diff: ## Acusa divergência do kit .claude/ contra a referência
 	./scripts/skills-diff.sh
