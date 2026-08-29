@@ -16,14 +16,34 @@ Um use case nunca devolve um status code. Uma rota nunca inventa uma regra de ne
 
 | Erro de domínio | HTTP | `type` |
 |---|---|---|
-| entrada malformada | 422 | `/errors/validation` |
+| requisição ilegível | 400 | `/errors/bad-request` |
+| entrada que viola o schema | 422 | `/errors/validation` |
 | credenciais inválidas ou ausentes | 401 | `/errors/unauthorized` |
 | autenticado mas sem permissão | 403 | `/errors/forbidden` |
 | recurso inexistente | 404 | `/errors/not-found` |
+| método não aceito na rota | 405 | `/errors/method-not-allowed` |
 | violação de unicidade | 409 | `/errors/conflict` |
 | falha inesperada | 500 | `/errors/internal` |
 
 O prefixo completo do `type` é `https://lopestech.dev`.
+
+### O limite entre 400 e 422
+
+> Se um objeto JSON foi extraído da requisição, o que falhar depois é **422**.
+> Se não foi, é **400**.
+
+Corpo que não é JSON, corpo ausente e query string malformada são 400: não há schema a
+violar, e portanto não há campo a nomear no `errors[]`.
+
+### O que não está no contrato é recusado
+
+Campo de corpo desconhecido, parâmetro de consulta desconhecido, campo presente com `null`
+onde o schema pede string, parâmetro presente e vazio: todos 422. Ignorar em silêncio é a
+convenção mais comum, e é o que faz um `passwrod` digitado errado no cliente criar a conta
+com uma senha que ninguém escolheu. Ver `docs/adr/0009-*.md`.
+
+E o inverso vale também: a validação **não pode ser mais restrita que o contrato**. Um
+contrato que promete mais do que a implementação entrega mente para quem o consome.
 
 ## O envelope — RFC 9457
 
